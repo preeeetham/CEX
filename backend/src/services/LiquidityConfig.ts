@@ -34,3 +34,4 @@ export function createDefaultConfig(market: string, referencePrice: number): Liq
   };
 }
 
+
