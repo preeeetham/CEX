@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEX Market Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            background: #0a0e27;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background: #1b5e20;
+            color: #81c784;
+        }
+
+        .status.disconnected {
+            background: #b71c1c;
+            color: #ef5350;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        select, button {
+            padding: 10px 15px;
+            background: #1e1e2e;
+            color: #e0e0e0;
+            border: 1px solid #4fc3f7;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2a2a3e;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .market-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: #1e1e2e;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4fc3f7;
+        }
+
+        .info-label {
+            color: #888;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
+        .info-value.positive {
+            color: #81c784;
+        }
+
+        .info-value.negative {
+            color: #ef5350;
+        }
+
+        .orderbook-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .orderbook-side {
+            background: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .orderbook-header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #0a0e27;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
+        .orderbook-header.bids {
+            border-left: 4px solid #81c784;
+        }
+
+        .orderbook-header.asks {
+            border-left: 4px solid #ef5350;
+        }
+
+        .order-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 8px 10px;
+            margin: 2px 0;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        .order-row.bid {
+            background: rgba(129, 199, 132, 0.1);
+        }
+
+        .order-row.ask {
+            background: rgba(239, 83, 80, 0.1);
+        }
+
+        .order-price {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .order-price.bid {
+            color: #81c784;
+        }
+
+        .order-price.ask {
+            color: #ef5350;
+        }
+
+        .order-quantity {
+            text-align: left;
+            color: #bbb;
+        }
+
+        .json-viewer {
+            background: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .json-viewer pre {
+            color: #e0e0e0;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 CEX Market Stream</h1>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div class="controls">
+            <select id="marketSelect">
+                <option value="STOCK-INR">STOCK-INR</option>
+                <option value="TECH-INR">TECH-INR</option>
+                <option value="BOND-INR">BOND-INR</option>
+            </select>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+
+        <div class="market-info">
+            <div class="info-card">
+                <div class="info-label">Last Trade Price</div>
+                <div id="lastPrice" class="info-value">-</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Best Bid</div>
+                <div id="bestBid" class="info-value">-</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Best Ask</div>
+                <div id="bestAsk" class="info-value">-</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Spread</div>
+                <div id="spread" class="info-value">-</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Mid Price</div>
+                <div id="midPrice" class="info-value">-</div>
+            </div>
+        </div>
+
+        <div class="orderbook-container">
+            <div class="orderbook-side">
+                <div class="orderbook-header bids">🟢 BIDS (Buy Orders)</div>
+                <div id="bidsContainer"></div>
+            </div>
+            <div class="orderbook-side">
+                <div class="orderbook-header asks">🔴 ASKS (Sell Orders)</div>
+                <div id="asksContainer"></div>
+            </div>
+        </div>
+
+        <div class="json-viewer">
+            <div style="color: #4fc3f7; margin-bottom: 10px; font-weight: bold;">📄 Raw JSON Data</div>
+            <pre id="jsonData">Waiting for data...</pre>
+            <div class="timestamp" id="lastUpdate">-</div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentMarket = 'STOCK-INR';
+
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            if (connected) {
+                statusEl.textContent = '✅ Connected';
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusEl.textContent = '❌ Disconnected';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                return;
+            }
+
+            currentMarket = document.getElementById('marketSelect').value;
+            const wsUrl = `ws://localhost:3000/ws`;
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                updateStatus(true);
+                
+                // Subscribe to orderbook channel
+                ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    channels: [{
+                        name: 'orderbook',
+                        market: currentMarket,
+                        depth: 20
+                    }]
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleMessage(message);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus(false);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateStatus(false);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            updateStatus(false);
+            clearOrderbook();
+        }
+
+        function handleMessage(message) {
+            // Update JSON viewer
+            document.getElementById('jsonData').textContent = JSON.stringify(message, null, 2);
+            document.getElementById('lastUpdate').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+
+            if (message.type === 'connected') {
+                console.log('Connected to server');
+            } else if (message.eventType === 'ORDERBOOK_UPDATED') {
+                // Event format: { eventType, payload: { bids, asks, ... } }
+                updateOrderbook(message.payload);
+            } else if (message.type === 'subscribed') {
+                console.log('Subscribed to channel:', message.channel);
+            }
+        }
+
+        function updateOrderbook(data) {
+            if (!data) return;
+
+            const { bids, asks, lastTradePrice, spread, midPrice } = data;
+
+            // Update market info
+            if (lastTradePrice !== undefined) {
+                document.getElementById('lastPrice').textContent = lastTradePrice.toFixed(2);
+            }
+
+            // Update bids
+            const bidsContainer = document.getElementById('bidsContainer');
+            if (bids && bids.length > 0) {
+                const bestBid = parseFloat(bids[0][0]);
+                document.getElementById('bestBid').textContent = bestBid.toFixed(2);
+                document.getElementById('bestBid').className = 'info-value positive';
+
+                bidsContainer.innerHTML = bids.map(([price, quantity]) => `
+                    <div class="order-row bid">
+                        <div class="order-quantity">${quantity}</div>
+                        <div class="order-price bid">${parseFloat(price).toFixed(2)}</div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('bestBid').textContent = '-';
+                bidsContainer.innerHTML = '<div class="empty-state">No bids</div>';
+            }
+
+            // Update asks
+            const asksContainer = document.getElementById('asksContainer');
+            if (asks && asks.length > 0) {
+                const bestAsk = parseFloat(asks[0][0]);
+                document.getElementById('bestAsk').textContent = bestAsk.toFixed(2);
+                document.getElementById('bestAsk').className = 'info-value negative';
+
+                asksContainer.innerHTML = asks.map(([price, quantity]) => `
+                    <div class="order-row ask">
+                        <div class="order-price ask">${parseFloat(price).toFixed(2)}</div>
+                        <div class="order-quantity">${quantity}</div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('bestAsk').textContent = '-';
+                asksContainer.innerHTML = '<div class="empty-state">No asks</div>';
+            }
+
+            // Update spread and mid price
+            if (spread !== undefined) {
+                document.getElementById('spread').textContent = spread.toFixed(2);
+            }
+            if (midPrice !== undefined) {
+                document.getElementById('midPrice').textContent = midPrice.toFixed(2);
+            }
+        }
+
+        function clearOrderbook() {
+            document.getElementById('bidsContainer').innerHTML = '<div class="empty-state">No data</div>';
+            document.getElementById('asksContainer').innerHTML = '<div class="empty-state">No data</div>';
+            document.getElementById('lastPrice').textContent = '-';
+            document.getElementById('bestBid').textContent = '-';
+            document.getElementById('bestAsk').textContent = '-';
+            document.getElementById('spread').textContent = '-';
+            document.getElementById('midPrice').textContent = '-';
+            document.getElementById('jsonData').textContent = 'Waiting for data...';
+        }
+
+        // Handle market change
+        document.getElementById('marketSelect').addEventListener('change', (e) => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                // Unsubscribe from old market and subscribe to new one
+                disconnect();
+                setTimeout(() => {
+                    connect();
+                }, 100);
+            }
+        });
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            // Don't auto-connect, let user click connect
+        });
+    </script>
+</body>
+</html>
+
